@@ -1,0 +1,318 @@
+---
+title: "Milestone_Report for the Capstone Project"
+author: "NatalijaK"
+date: "19 Februar 2017"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Synopsis
+Along the Captsone Project we are supposed to get familiar with a new subject which is **Text mining**, a field of **Natural Process Language**. 
+The **text mining** allow us to identify and highlight the most frequent keywords within a text, paragraph, a list of texts.
+The visual presentation of the text data is done over a **word cloud**.
+The text mining package (tm) and the wordcloud package (wordcloud) both support in analyzing the texts and visualize the keywords as a word cloud.
+Few advantages of using __word clouds__ : 
+    * simplicity and clarity are gained with the visualization of the most outstanding / frequent words in the word cloud
+    * easy to understand and easily shared as a potent __communication tool__, hence for the interpretation of the insights it is more powerfull than any __table data__  .
+
+#####Fields where word clouds are used:
+   * social media or customer log files to analyze sentiments __sentiments analysis__
+   * politicis or journalism
+   * marketing
+   * researches for reporting qualitative data
+
+#####Major steps for creating the word clouds using R-Studio
+    Step1: create a text file
+    Step2: install and load reuired packages
+    Step3: text minig (includes text transformation)
+    Step4: building a term-document matrix
+    Step5: generate the Word cloud
+
+#####The goal of the this project 
+    * explore the data such as word length, distribution, frequency
+    * create prediction algorithm, create a __predictive text model__  on Next Word Prediction 
+    * integrate the prediction algorithm in Shiny App for the interactive use
+
+[LINK to Files saved on my git hub repository] <https://github.com/natalijak/Capstone_Project>.
+
+## Introduction to the Data
+    * the data is made available by SwiftKey, and downloaded from the Coursera Website as a zip file.
+    * Zipfile contains 4 subfolders which store data in 4 foreign languages (English, German, Russian, Finnish)
+    * I have used the English-Data set __en_US__.
+    * The data stored in the en_US subfolder comes from different sources, social networks: Twitter and Blogs and from the News
+
+ 
+Get the required packages
+
+```{r load packages, eval=FALSE, echo=TRUE, message=FALSE, warning=FALSE}
+library(RWekajars)
+library(qdapDictionaries)
+library(qdapRegex)
+library(qdapTools)  
+library(RColorBrewer)  #color palettes
+library(qdap)  
+library(NLP)
+library(tm) #text mining
+library(SnowballC) #text stemming
+library(devtools)
+library(RWeka)
+library(rJava)  #this one was a trouble maker !
+library(wordcloud) #word cloud generator
+library(tmap)
+```
+
+####Data Processing
+Load the Data, which was previously downloaded from the official Coursera Source zip file
+
+```{r readLines, eval=FALSE, echo=TRUE}
+blogs <- readLines("~/Capstone_Project/final/en_US/en_US.blogs.txt", encoding = "UTF-8", skipNul=TRUE)
+news <- readLines("~/Capstone_Project/final/en_US/en_US.news.txt", encoding = "UTF-8", skipNul=TRUE)  
+twitter <- readLines("~/Capstone_Project/final/en_US/en_US.twitter.txt", encoding = "UTF-8", skipNul=TRUE)
+```
+
+Get the Data Sample in order to improve the performance and create one sample File in order to collect the data from different sources and perform than the analysis over one sample file
+
+```{r Samples, eval=FALSE, echo=TRUE}
+set.seed(12345)
+sampleTwitter <- twitter[sample(1:length(twitter),10000)]
+sampleNews <- news[sample(1:length(news),10000)]
+sampleBlogs <- blogs[sample(1:length(blogs),10000)]
+
+textSample <- c(sampleTwitter,sampleNews,sampleBlogs)
+
+writeLines(textSample, "~/Capstone_Project/Milestone_Report/textSample.txt")
+
+```
+###Explore the data and get first insights/ data summaries 
+Get the size of the files in MB
+
+```{r Size, eval=FALSE, echo=TRUE}
+SizeMBblogs <- file.info("~/Capstone_Project/final/en_US/en_US.blogs.txt")$size / 1024.0 / 1024.0
+SizeMBnews <- file.info("~/Capstone_Project/final/en_US/en_US.news.txt")$size / 1024.0 / 1024.0
+SizeMBtwitter <- file.info("~/Capstone_Project/final/en_US/en_US.twitter.txt")$size / 1024.0 / 1024.0
+Sizesample <- file.info("C:~/Capstone_Project/Milestone_Report/textSample.txt")$size / 1024.0 / 1024.0  
+
+```
+Get the length
+
+```{r Length, eval=FALSE, echo=TRUE}
+Lengthblogs <- length(blogs)
+Lengthnews <- length(news)
+Lengthtwitter <- length(twitter)
+Lengthsample <- length(textSample)
+
+```
+
+```{r Wording, eval=FALSE, echo=TRUE}
+Wordingblogs <- sum(sapply(gregexpr("\\S+", blogs), length))
+Wordingnews <- sum(sapply(gregexpr("\\S+", news), length))
+Woridngtwitter <- sum(sapply(gregexpr("\\S+", twitter), length))
+Woridngsample <- sum(sapply(gregexpr("\\S+", textSample), length))
+```
+
+The table summary returnes first holistic overview on the the basic data summaries
+
+```{r TableSummary, eval=FALSE, echo=TRUE}
+TableSummary <- data.frame(
+        AssignefileName = c("Blogs File-US","News File-US","Twitter File-US", "Sample File-US"),
+        AttachfileSize = c(round(SizeMBblogs, digits = 2), 
+                     round(SizeMBnews,digits = 2), 
+                     round(SizeMBtwitter, digits = 2),
+                     round(Sizesample, digits = 2)),
+        GetCntofLines = c(Lengthblogs, Lengthnews, Lengthtwitter, Lengthsample),
+        GetCntofWords = c(Wordingblogs, Wordingnews, Woridngtwitter, Woridngsample)
+       
+)
+
+```
+
+```{r TableSummary2, eval=FALSE, echo=TRUE}
+colnames(TableSummary) <- c("File Name", "File SizeMB", "Line Count", "Word Count")
+saveRDS(TableSummary, file = "~/Capstone_Project/Milestone_Report/fileSummary.Rda")
+
+#kniter the file- it returnes the tabular overview of previously calculated dimensions of the file
+
+```
+
+```{r TableSummaryKnitr, eval=TRUE, echo=TRUE}
+FileSummaryDF <- readRDS("~/Capstone_Project/Milestone_Report/fileSummary.Rda")
+knitr::kable(head(FileSummaryDF, 10))
+
+```
+
+```{r Clean Data, eval=TRUE, echo=TRUE}
+#finalCorpus <- readRDS("~/Capstone_Project/Milestone_Report/finalCorpus.RDS")
+
+SampleConnection <- file("~/Capstone_Project/Milestone_Report/textSample.txt")
+Sample <- readLines(SampleConnection)
+close(SampleConnection)
+
+```
+Load the Data as a Corpus. This Corpus includes three different files and the sample out of it.
+
+```{r Corpus, eval=TRUE, echo=FALSE}
+library(tm)
+cleanSample <- Corpus(VectorSource(Sample))
+
+```
+Text transformation and cleaning. For this action one has the function **tm_map** available. The function can replace special characters from the text. For example replace "?", "@" , "}" with  space. 
+The tm_map() function is also used to remove not reasonable space inbetween words, converts text to lower case,
+removes _stopwords_. The value of _stopwords_ is near zero. They are very common in all languages but have no real value. _Numbers_ and _Punctuation_ are removed as well.
+The **stemming process** reduces the words "talked", "talk", "talking" into the orgin verb "talk".
+This could be extened by multiple other arguments in order to clean the text and to have reasonable data incorporated into a cleaned corpus for the further prediction steps. 
+
+```{r Clean Sample, eval=TRUE, echo=TRUE}
+library(tm)
+cleanSample <- tm_map(cleanSample, content_transformer(tolower), lazy = TRUE)
+cleanSample <- tm_map(cleanSample, stripWhitespace)
+cleanSample <- tm_map(cleanSample, content_transformer(removePunctuation))
+cleanSample <- tm_map(cleanSample, content_transformer(removeNumbers))
+cleanSample <- tm_map(cleanSample, removeWords, stopwords("english"))
+cleanSample <- tm_map(cleanSample, stemDocument)
+cleanSample <- tm_map(cleanSample, stripWhitespace)
+
+
+```
+
+```{r Save RDSFinalCorpus, eval=TRUE, echo=TRUE}
+saveRDS(cleanSample, file = "~/Capstone_Project/Milestone_Report/finalCorpus.RDS")
+```
+Save final Text Corpus.
+
+```{r Creat FinalCorpus, eval=TRUE, echo=TRUE}
+#read final corpus
+finalCorpus <- readRDS("~/Capstone_Project/Milestone_Report/finalCorpus.RDS")
+
+```
+
+```{r Creat FinalCorpusDataFrame, eval=TRUE, echo=TRUE}
+finalCorpusDF <-data.frame(text=unlist(sapply(finalCorpus,`[`, "content")), 
+                           stringsAsFactors = FALSE)
+```
+##Creation of N-Grams
+```{r nGrams, echo=TRUE}
+##The tokenization function for the n-grams##
+library(rJava)
+library(RWeka)
+
+nGrams <- function(finalCorpus, grams) {
+        ngram <- NGramTokenizer(finalCorpus, Weka_control(min = grams, max = grams,
+                                                        delimiters = " \\r\\n\\t.,;:\"()?!"))
+        ngram <- data.frame(table(ngram))
+        ngram <- ngram[order(ngram$Freq,decreasing = TRUE),]
+        colnames(ngram) <- c("String","Count")
+        return(ngram)
+}
+
+```
+
+```{r unigram, eval=TRUE, echo=TRUE}
+unigram <- nGrams(finalCorpusDF, 1)
+
+```
+
+```{r unigramrows, eval=TRUE, echo=TRUE}
+nrow(unigram)
+#save Unigram RDS File
+saveRDS(unigram, file = "~/Capstone_Project/Milestone_Report/unigram.RDS")
+```
+Plot data for the Unigram, top20
+```{r plot frequency, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+#Plot word frequency Unigram
+library(ggplot2)
+plot1 <- ggplot(unigram[1:20,], aes(String, Count))   
+plot1 <- plot1 + geom_bar(stat="identity")
+plot1 <- plot1 + theme(axis.text.x=element_text(angle=45, hjust=1))
+plot1 <- plot1 + ggtitle("Top 20 Word Frequency of a Unigram")
+plot1
+```
+
+```{r plot, eval=FALSE, echo=FALSE}
+plot1
+```
+Plot the Unigram histogram
+
+```{r plot and save , eval=TRUE, echo=TRUE}
+#save Unigram histogram
+png(filename="~/Capstone_Project/Milestone_Report/Histogram_Unigram.png")
+plot(plot1)
+dev.off()
+```
+Create a Unigram WordCloud in order to illustrated the importance of the words.
+
+```{r create WordCloud for Unigram , eval=TRUE, echo=TRUE}
+library(wordcloud)
+set.seed(12345)
+cloud_unigram <-wordcloud(unigram$String, unigram$Count, random.order=FALSE, 
+          min.freq= 700,
+          colors=brewer.pal(8, "Dark2"))
+
+```
+
+
+```{r Plot Wordcloud Unigram and save , eval=FALSE, echo=FALSE}
+#save the  Cloud Unigram
+png(filename="~/Capstone_Project/Milestone_Report/Cloud_Unigram.png")
+plot(cloud_unigram)
+dev.off()
+
+```
+
+
+
+```{r bigram, eval=TRUE, echo=TRUE}
+bigram <- nGrams(finalCorpusDF, 2)
+
+```
+
+```{r bigramrows, eval=TRUE, echo=TRUE}
+nrow(bigram)
+#save Bigram RDS File
+saveRDS(bigram, file = "~/Capstone_Project/Milestone_Report/bigram.RDS")
+```
+
+Plot data for the Bigram, top20
+
+```{r plot frequency Bigram, eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+#Plot word frequency Bigram
+library(ggplot2)
+plot2 <- ggplot(bigram[1:20,], aes(String, Count))   
+plot2 <- plot2 + geom_bar(stat="identity")
+plot2 <- plot2 + theme(axis.text.x=element_text(angle=45, hjust=1))
+plot2 <- plot2 + ggtitle("Top 20 Word Frequency of a Bigram")
+plot2
+```
+
+```{r plot Bigram, eval=FALSE, echo=FALSE}
+plot2
+```
+Plot the Bigram histogram
+
+```{r plot and save bigram , eval=TRUE, echo=TRUE}
+#save Bigram histogram
+png(filename="~/Capstone_Project/Milestone_Report/Histogram_Bigram.png")
+plot(plot2)
+dev.off()
+```
+
+
+
+
+
+###Next Steps based on the explored findings
+  * get better familiar how to improve data processing
+  * study some other algorithms for the more sophisticated approach and to precisely predict the next-word 
+  * build prediction model
+  * build fancy ShinyApp
+
+####Bigram and Trigram WordClours & Histogram are available over my [Github Project Folder] <https://github.com/natalijak/Capstone_Project>.
+
+###Appendix  
+Some functions are being re-used but also modified from Sites like : 
+[Link to Stackoverflow] <http://stackoverflow.com>
+and another extremly valuable source supported by [Link to r-bloggers] <http://r-bloggers.com>.
+
+
